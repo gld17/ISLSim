@@ -1,0 +1,28 @@
+{
+  "tx": {
+    "tx_power_w": 5.0,
+    "tx_aperture_m": 0.10,
+    "wavelength_m": 0.00000155,
+    "baud_rate_ghz": 60.0,
+    "wdm_channels": 2,
+    "fec_overhead": 0.15,
+    "dual_polarization": true,
+    "wdm_power_mode": "total_power_fixed",
+    "modulation_pool": [
+      [16, "DP-16QAM"],
+      [8, "DP-8QAM"],
+      [4, "DP-QPSK"]
+    ]
+  },
+  "rx": {
+    "rx_aperture_m": 0.10,
+    "preamp_gain_db": 40.0,
+    "preamp_nf_db": 7.5,
+    "ber_threshold": 0.001,
+    "terminal_cap_gbps": 400.0
+  },
+  "channel": {
+    "link_margin_db": 7.0,
+    "optical_efficiency": 0.7
+  }
+}

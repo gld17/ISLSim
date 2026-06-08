@@ -18,8 +18,6 @@ FSO 星间链路距离-带宽模型 (v3.0)
 
 本模型无法回答"哪个方案更优", 只能回答"给定参数组合下各距离档位能跑多少带宽"。
 
-参数来源: 参见 parameter_audit.md (同目录 docs/loops/.../parameter_audit.md)
-
 物理建模流程:
   d(t) -> Pr(t) -> SNR(t) -> max M(t) -> BW(t)
 
@@ -33,11 +31,13 @@ References:
   - Beijing S&T Commission: 400 Gbps in-orbit demo [kw.beijing.gov.cn, 2025.03]
 """
 
-from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
+from typing import List, Tuple
 import math
 import csv
 import os
+
+from config import FSOConfig, load_config_from_json
 
 # ============================================================================
 # Physical constants
@@ -75,88 +75,6 @@ def ber_mqam(M: int, snr_linear: float) -> float:
     coeff = 2.0 * (sqrt_m - 1.0) / (sqrt_m * math.log2(M))
     arg = math.sqrt(3.0 * snr_linear / (M - 1.0))
     return coeff * _qfunc(arg)
-
-
-# ============================================================================
-# FSO Device Configuration (USER-EDITABLE)
-# ============================================================================
-@dataclass
-class FSOConfig:
-    """Configurable FSO terminal and link parameters.
-
-    All numerical values in SI units (W, m, Hz) unless noted with _db.
-    Edit these fields to explore different technology combinations.
-
-    Fields with source annotations are documented in parameter_audit.md.
-    """
-
-    # ---- Transmit side -------------------------------------------------
-    tx_power_w: float = 5.0
-    # Source: MPBC PULSAR 5W space-qualified [mpbcommunications.com]
-    # Cross-validated: PhotoniCore 5W EYDFA for SPACE [photonicore.com.tw]
-
-    tx_aperture_m: float = 0.10
-    # Estimated: mid-size terminal (~10 cm), cf. Mynaric CONDOR Mk3 (8 cm)
-
-    rx_aperture_m: float = 0.10
-    # Estimated: symmetric assumption
-
-    wavelength_m: float = 1.55e-6
-    # Source: SDA OCT C-band standard [sda.mil]
-
-    optical_efficiency: float = 0.7
-    # Estimated: industry rule-of-thumb (lens + coupling)
-
-    # ---- Link margin ---------------------------------------------------
-    link_margin_db: float = 7.0
-    # Estimated: pointing + optical + implementation loss combined
-    # Upper-bound reference: China Practice Sat tracking error < 5 urad
-
-    # ---- EDFA pre-amplifier (receive side) -----------------------------
-    preamp_gain_db: float = 40.0
-    # Source: MPBC Space Qualified Pre-Amplifier TRL-9 [gophotonics.com]
-
-    preamp_nf_db: float = 7.5
-    # Source: MPBC Space Qualified Pre-Amplifier TRL-9 [gophotonics.com]
-    # Alternative (optimistic): NICT CubeSOTA NF=4.2 dB [Umezawa 2025]
-
-    # ---- Modulation / FEC ----------------------------------------------
-    baud_rate_ghz: float = 60.0
-    # *** NO SPACE-QUALIFIED SOURCE ***
-    # Inferred from China 400 Gbps demo: WDM=2+QPSK => Bs=400/(2*2*0.85*2)~58.8 => 60
-    # Within terrestrial commercial range (96 Gbaud, Neophotonics CDM Class 60)
-
-    ber_threshold: float = 1e-3
-    # Source: HD-FEC industry standard (ITU-T G.975 convention)
-
-    fec_overhead: float = 0.15
-    # Source: HD-FEC typical (DVB-S2 class)
-
-    dual_polarization: bool = True
-    # Source: coherent communication standard
-
-    modulation_pool: List[Tuple[int, str]] = field(default_factory=lambda: [
-        (16, "DP-16QAM"),
-        (8,  "DP-8QAM"),
-        (4,  "DP-QPSK"),
-    ])
-    # USER-CONFIGURABLE: add/remove/reorder modulation formats
-    # Higher M = higher spectral efficiency but requires higher SNR
-    # Modulation formats beyond QPSK have NO public space verification
-
-    # ---- WDM -----------------------------------------------------------
-    wdm_channels: int = 2
-    # Source: SDA OISL v2.1.2 dual-wavelength standard [sda.mil]
-    # Cross-check: TESAT/MPB dual-wavelength 100 Gbps demo [tesat.de]
-
-    wdm_power_mode: str = "total_power_fixed"
-    # "total_power_fixed": Pt,lambda = Pt,total / N  (recommended for space)
-    # "per_channel_power_fixed": each channel gets independent full power
-
-    # ---- Terminal capability -------------------------------------------
-    terminal_cap_gbps: Optional[float] = 400.0
-    # Source: China Practice Sat 01/02 in-orbit demo 400 Gbps [kw.beijing.gov.cn 2025.03]
-    # Set to None to disable cap
 
 
 # ============================================================================
@@ -266,14 +184,14 @@ def compute_link(config: FSOConfig, distance_km: float) -> LinkResult:
 
     distance_m = distance_km * 1e3
 
-    # ---- Step 1: Per-channel transmit power --------------------------------
+    # ---- Per-channel transmit power ----------------------------------------
     if config.wdm_power_mode == "per_channel_power_fixed":
         tx_per_ch_w = config.tx_power_w
     else:
         tx_per_ch_w = config.tx_power_w / config.wdm_channels
     tx_per_ch_dbm = 10.0 * math.log10(tx_per_ch_w * 1e3)
 
-    # ---- Step 2: Friis -> received power -----------------------------------
+    # ---- Friis -> received power -------------------------------------------
     g_tx_db = _antenna_gain_db(config.tx_aperture_m, config.wavelength_m)
     g_rx_db = _antenna_gain_db(config.rx_aperture_m, config.wavelength_m)
     l_fs_db = _path_loss_db(distance_m, config.wavelength_m)
@@ -283,7 +201,7 @@ def compute_link(config: FSOConfig, distance_km: float) -> LinkResult:
     pr_dbm = tx_per_ch_dbm + g_tx_db + g_rx_db + l_fs_db + eta_db - config.link_margin_db
     pr_w = 1e-3 * (10.0 ** (pr_dbm / 10.0))
 
-    # ---- Step 3: SNR after EDFA pre-amp ------------------------------------
+    # ---- SNR after EDFA pre-amp --------------------------------------------
     baud_rate_hz = config.baud_rate_ghz * 1e9
     snr_linear = _edfa_snr(
         pr_linear_w=pr_w,
@@ -300,14 +218,14 @@ def compute_link(config: FSOConfig, distance_km: float) -> LinkResult:
         snr_pol_linear = snr_linear
         snr_pol_db = snr_db
 
-    # ---- Step 4: Select modulation -----------------------------------------
+    # ---- Select modulation -------------------------------------------------
     M, label, feasible = _select_modulation(
         snr_pol_linear,
         ber_threshold=config.ber_threshold,
         modulation_pool=config.modulation_pool,
     )
 
-    # ---- Step 5: Bandwidth -------------------------------------------------
+    # ---- Bandwidth ---------------------------------------------------------
     if feasible and M > 0:
         fec_eff = 1.0 - config.fec_overhead
         dp_factor = 2.0 if config.dual_polarization else 1.0
@@ -367,6 +285,23 @@ def sweep_distances(
     return [compute_link(config, d) for d in distances_km]
 
 
+def geomspace(start: float, end: float, points: int) -> List[float]:
+    """Return geometric-spaced values without requiring external packages."""
+    if start <= 0 or end <= 0:
+        raise ValueError("geometric distance bounds must be > 0")
+    if points <= 0:
+        raise ValueError("points must be > 0")
+    if points == 1:
+        return [start]
+
+    log_start = math.log(start)
+    log_end = math.log(end)
+    return [
+        math.exp(log_start + (log_end - log_start) * i / (points - 1))
+        for i in range(points)
+    ]
+
+
 def sweep_range(
     config: FSOConfig,
     start_km: float = 100.0,
@@ -374,9 +309,7 @@ def sweep_range(
     points: int = 20,
 ) -> List[LinkResult]:
     """Run link budget over a geometric-spaced range of distances."""
-    import numpy as np
-    distances = np.geomspace(start_km, end_km, points)
-    return sweep_distances(config, list(distances))
+    return sweep_distances(config, geomspace(start_km, end_km, points))
 
 
 def print_table(results: List[LinkResult]) -> None:
@@ -445,26 +378,21 @@ def save_csv(results: List[LinkResult], filepath: str) -> None:
 
 
 # ============================================================================
-# Quick-run entry point (edit config above, then: python link_model.py)
+# Quick-run entry point
 # ============================================================================
 if __name__ == "__main__":
-    """
-    Quick demo using bs32_wdm1 preset (32 Gbaud, WDM=1, 16/8/QPSK).
-    Run: python -m src.fso_link_model.link_model
-
-    For other presets, use sweep.py:
-      python -m src.fso_link_model.sweep --preset bs60_wdm1
-      python -m src.fso_link_model.sweep --preset bs60_wdm2
-    """
-    import numpy as np
-    from .presets import BS32_WDM1
-
-    cfg = BS32_WDM1
-    distances = np.geomspace(100, 5000, 15)
-    results = sweep_distances(cfg, list(distances))
+    cfg_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "configs",
+        "google_constellation.json",
+    )
+    cfg = load_config_from_json(cfg_path)
+    results = sweep_range(cfg, 100, 5000, 15)
 
     print()
-    print(f"Preset: bs32_wdm1 (32 Gbaud, WDM=1, [16QAM,8QAM,QPSK])")
+    print(f"Config: {cfg_path}")
+    print(f"Waveform: {cfg.baud_rate_ghz} Gbaud, WDM={cfg.wdm_channels}, "
+          f"Pool={[m[1] for m in cfg.modulation_pool]}")
     print(f"EDFA: {cfg.tx_power_w}W booster, "
           f"G={cfg.preamp_gain_db}dB / NF={cfg.preamp_nf_db}dB")
     print(f"Aperture: {cfg.tx_aperture_m*100:.0f}cm | Margin: {cfg.link_margin_db}dB "
@@ -472,10 +400,3 @@ if __name__ == "__main__":
     print()
 
     print_table(results)
-
-    out_dir = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "..",
-        "docs", "loops", "2026-05-31-fso-distance-bandwidth-model", "results",
-    )
-    os.makedirs(out_dir, exist_ok=True)
-    save_csv(results, os.path.join(out_dir, "distance_bw_bs32_wdm1.csv"))
