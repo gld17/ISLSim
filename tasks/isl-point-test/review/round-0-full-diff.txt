@@ -1,0 +1,12 @@
+=== git status --short ===
+?? point_test.py
+?? tasks/isl-point-test/plan-quiz.md
+?? tasks/isl-point-test/review/
+
+=== committed diff: main...HEAD ===
+
+=== working tree diff: git diff main ===
+
+=== unstaged working tree diff: git diff ===
+
+=== staged diff: git diff --cached ===
