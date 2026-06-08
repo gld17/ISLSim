@@ -1,0 +1,1619 @@
+=== STDOUT ===
+已完成 Round 0。
+
+新增文件：
+- [point_test.py](/share/guolidong-nfs/SeeSpace/ISLSim/point_test.py)
+- [round-0-summary.md](/share/guolidong-nfs/SeeSpace/ISLSim/tasks/isl-point-test/impl/round-0-summary.md)
+
+验证已执行并通过：
+- `python3 point_test.py --distance-km 1000 --config configs/google_constellation.json` 输出 `400.0`
+- stdout 行数为 `1`
+- 输出可被 `float()` 解析
+- 缺少 `--distance-km` 时 argparse 以退出码 `2` 报错
+- 不存在配置文件时抛出异常并以退出码 `1` 退出
+- `python3 sweep.py --help` 正常
+- `python3 -m py_compile point_test.py` 通过
+- 所有非 tasks 下 `.py` 文件 `py_compile` 通过
+- `python3 link_model.py` 正常运行
+
+未执行任何 git 命令，未修改 `sweep.py`。
+
+=== STDERR ===
+Reading prompt from stdin...
+OpenAI Codex v0.135.0
+--------
+workdir: /share/guolidong-nfs/SeeSpace/ISLSim
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: danger-full-access
+reasoning effort: medium
+reasoning summaries: none
+session id: 019ea80e-c176-7990-8164-5cbce4bc59af
+--------
+user
+# Round 0 任务
+
+## 强制执行规则
+你必须遵守 pbr-codex-builder skill。若未加载该 skill，也必须遵守：
+1. 你是唯一 Builder，只写代码。
+2. 不做 review 判断。
+3. 不执行任何 git 命令。
+4. 完成后必须写入指定 summary 文件。
+
+## 重要限制
+- **不要执行 git 命令**：如果你需要重命名文件，请直接创建新文件并写入内容，然后删除旧文件。不要尝试 `git mv`（你会被拒绝）。Kimi 会在后续 commit 阶段处理 git 历史追溯性。
+- 所有文件操作（创建、修改、删除）通过 Hermes 工具完成，不直接输出代码到对话中。
+- 每次修改文件后，检查是否有 include 路径、import 路径或其他引用需要同步更新。
+- 修改前先在相关文件中搜索所有引用，确认修改的安全性。
+- **sweep.py 必须保持原样，不得修改任何内容。**
+
+## 项目当前结构
+
+```
+/share/guolidong-nfs/SeeSpace/ISLSim/
+├── config.py              # 配置 dataclass：TXConfig, RXConfig, ChannelConfig, FSOConfig, load_config_from_json(), config_to_dict()
+├── link_model.py          # 核心物理计算：compute_link(config, distance_km) -> LinkResult, sweep_distances(), geomspace(), print_table(), save_csv()
+├── sweep.py               # 距离扫描入口（必须保持原样）
+├── configs/
+│   └── google_constellation.json
+├── README.md
+└── tasks/                 # PBR 任务目录（不要修改）
+```
+
+## 本轮需完成的工作
+
+根据 plan.md 的 AC-1 到 AC-5，完成以下工作：
+
+### 新增 point_test.py
+
+在项目根目录（`/share/guolidong-nfs/SeeSpace/ISLSim/`）新增 `point_test.py`，要求如下：
+
+1. **命令行参数**：
+   - `--distance-km`（必需）：指定星间距离，单位 km，类型 float
+   - `--config`（可选）：JSON 配置文件路径，默认值为 `configs/google_constellation.json`
+
+2. **功能逻辑**：
+   - 使用 `config.py` 的 `load_config_from_json()` 加载 JSON 配置文件
+   - 调用 `link_model.py` 的 `compute_link(config, distance_km)` 计算链路结果
+   - 从 `LinkResult` 对象中提取 `total_bw_gbps` 字段
+   - 如果 `feasible=False`，输出 `0.0`
+   - 如果 `feasible=True`，输出 `total_bw_gbps` 的浮点数值
+
+3. **输出格式**：
+   - **标准输出仅包含一个带宽数值**，无表头、无说明文字、无装饰
+   - 数值应能被 `float()` 直接解析
+   - 不要输出 "Config:"、"Waveform:" 等描述性文字
+   - 建议格式：`print(f"{result.total_bw_gbps:.2f}")` 或 `print(result.total_bw_gbps)`
+
+4. **导入方式**：
+   - 使用项目根目录绝对导入：
+     ```python
+     from config import load_config_from_json
+     from link_model import compute_link
+     ```
+   - 不要使用 `sys.path.insert`
+
+5. **错误处理**：
+   - 缺少 `--distance-km` 参数时，argparse 应自动报错并输出 usage
+   - 配置文件不存在或格式错误时，应抛出异常并以非零退出码退出
+
+### 验证要求
+
+完成代码后，执行以下验证：
+1. `python3 point_test.py --distance-km 1000 --config configs/google_constellation.json` — 应输出一个数值（如 `400.0`）
+2. `python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | wc -l` — 应输出 `1`
+3. `python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | python3 -c "import sys; print(float(sys.stdin.read().strip()))"` — 应成功解析为 float
+4. `python3 point_test.py` — 缺少 `--distance-km`，应以非零退出码报错
+5. `python3 sweep.py --help` — 输出应与之前完全一致（sweep.py 未被修改）
+6. `python3 -m py_compile point_test.py` — 语法检查通过
+7. 所有 `.py` 文件通过 `python3 -m py_compile` 检查
+
+## 完成后写入 Summary
+将 summary 写入：/share/guolidong-nfs/SeeSpace/ISLSim/tasks/isl-point-test/impl/round-0-summary.md
+
+Summary 必须包含以下部分：
+1. 本轮实现内容
+2. AC 推进情况（逐个 AC 说明：Implemented / Not Met / Partial，并列出证据）
+3. 遗留问题
+4. Goal Tracker 更新请求
+5. Lesson Delta
+
+## plan.md 全文
+
+# ISLSim 新增单点测试脚本
+
+## Goal Description
+
+在 ISLSim 项目中新增一个单点测试脚本 `point_test.py`，功能如下：
+1. 接受两个命令行参数：距离（km）和配置文件路径（JSON）；
+2. 从 JSON 配置文件加载 FSO 配置；
+3. 调用 `link_model.py` 的 `compute_link` 函数计算指定距离下的链路结果；
+4. 仅输出该距离下的带宽数值（total_bw_gbps），格式简洁，便于脚本化调用和管道处理；
+5. 保持 `sweep.py` 脚本不变。
+
+## Acceptance Criteria
+
+- AC-1: 脚本存在且可运行
+  - 项目根目录存在 `point_test.py`；
+  - 脚本可通过命令行接收 `--distance-km` 和 `--config` 参数；
+  - Positive Tests：`python point_test.py --distance-km 1000 --config configs/google_constellation.json` 输出一个数值（如 `400.0`）；
+  - Negative Tests：缺少 `--distance-km` 或 `--config` 参数时，脚本以非零退出码报错并输出 usage。
+
+- AC-2: 输出格式简洁
+  - 脚本标准输出仅包含带宽数值（`total_bw_gbps`），无额外表头、说明文字或装饰；
+  - 数值格式为浮点数，保留适当精度；
+  - Positive Tests：`python point_test.py --distance-km 1000 --config configs/google_constellation.json | wc -l` 输出 `1`；
+  - Positive Tests：输出内容可被 `float()` 直接解析；
+  - Negative Tests：输出中不包含 "Config:"、"Waveform:" 等描述性文字。
+
+- AC-3: 配置加载正确
+  - 脚本使用 `config.py` 的 `load_config_from_json()` 加载配置；
+  - 能正确解析 JSON 配置文件并传递给 `compute_link()`；
+  - Positive Tests：使用不同的 JSON 配置文件（如自定义测试配置）能得到不同的带宽结果；
+  - Negative Tests：配置文件不存在或格式错误时，脚本抛出异常并以非零退出码退出。
+
+- AC-4: sweep.py 不受影响
+  - `sweep.py` 文件内容保持不变；
+  - Positive Tests：`python sweep.py --help` 输出与之前完全一致；
+  - Negative Tests：`sweep.py` 中无新增导入或修改。
+
+- AC-5: 无回归
+  - Positive Tests：现有文件（`config.py`、`link_model.py`、`configs/google_constellation.json`）不被破坏；
+  - Positive Tests：`python link_model.py` 仍能正常运行；
+  - Negative Tests：不引入语法错误，所有 `.py` 文件通过 `python -m py_compile` 检查。
+
+## Implementation Notes
+- 代码中禁止出现 AC-、Milestone、Step、Phase 等 plan 标记
+- 输出到 stdout 的带宽数值应直接来自 `LinkResult.total_bw_gbps`
+- 如果链路不可行（feasible=False），输出 `0.0`
+- 脚本应使用 `argparse` 处理命令行参数
+- 导入方式与现有脚本保持一致（项目根目录绝对导入）
+
+## Path Boundaries
+- 可接受的实现范围：新增 `point_test.py` 脚本，不修改其他文件
+- 不可接受的方向：修改 `sweep.py`、修改核心物理公式、修改配置文件格式
+
+codex
+我会按 Builder 角色执行，只做实现和验证；当前可用 skill 列表里没有 `pbr-codex-builder`，因此按你给出的强制规则执行。先检查现有入口和引用，确认只新增 `point_test.py`，不触碰 `sweep.py`。
+exec
+/bin/bash -lc "sed -n '1,260p' link_model.py" in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+# -*- coding: utf-8 -*-
+"""
+FSO 星间链路距离-带宽模型 (v3.0)
+=================================
+
+核心声明 -- 波特率与调制阶数的"等速率异构"问题:
+  同样的比特速率可通过不同技术组合实现:
+    - 方案A: 高波特率 + 低调制阶数 (如 60 Gbaud + DP-QPSK -> 204 Gbps/lambda)
+    - 方案B: 低波特率 + 高调制阶数 (如 32 Gbaud + DP-16QAM -> 218 Gbps/lambda)
+  两个方案在相同距离下的 SNR 不同, 可支持的距离区间也不同。
+  目前业界对"哪种方案在星间 FSO 场景中更可信"尚无定论。
+
+本模型的处理策略:
+  1. 物理层公式完全固定 (Friis / EDFA噪声 / M-QAM BER)
+  2. 波特率(baud_rate_ghz)和调制阶数池(modulation_pool)均为用户可配置参数
+  3. 模型根据 SNR -> 从调制池中选满足 BER 门限的最高阶 -> 计算带宽
+  4. 不同配置产生的距离-带宽曲线差异, 正是"等速率异构"问题的直接体现
+
+本模型无法回答"哪个方案更优", 只能回答"给定参数组合下各距离档位能跑多少带宽"。
+
+物理建模流程:
+  d(t) -> Pr(t) -> SNR(t) -> max M(t) -> BW(t)
+
+References:
+  - Friis, H.T. Proc. IRE, 1946. (Friis transmission equation)
+  - Agrawal G.P. Fiber-Optic Communication Systems, 5th ed., Wiley, 2021. (ASE noise)
+  - Proakis J.G. Digital Communications, 5th ed., McGraw-Hill, 2008. (M-QAM BER)
+  - MPBC Space-Qualified Amplifiers [mpbcommunications.com/space]
+  - PhotoniCore 5W EYDFA for SPACE [photonicore.com.tw]
+  - SDA OISL Standard v2.1.2 [sda.mil]
+  - Beijing S&T Commission: 400 Gbps in-orbit demo [kw.beijing.gov.cn, 2025.03]
+"""
+
+from dataclasses import dataclass
+from typing import List, Tuple
+import math
+import csv
+import os
+
+from config import FSOConfig, load_config_from_json
+
+# ============================================================================
+# Physical constants
+# ============================================================================
+C = 299_792_458.0          # speed of light [m/s]
+H = 6.62607015e-34         # Planck constant [J*s]
+PI = math.pi
+
+# Photon energy at 1550 nm
+NU_1550 = C / 1.55e-6      # ~193.4 THz
+HNU = H * NU_1550           # ~1.28e-19 J
+
+
+# ============================================================================
+# Q-function approximation
+# ============================================================================
+def _qfunc(x: float) -> float:
+    """Q(x) = 0.5 * erfc(x / sqrt(2))"""
+    return 0.5 * math.erfc(x / math.sqrt(2.0))
+
+
+# ============================================================================
+# M-QAM BER formula (Gray mapping approximation)
+# ============================================================================
+def ber_mqam(M: int, snr_linear: float) -> float:
+    """Approximate BER for M-QAM with Gray mapping.
+
+    BER = 2*(sqrt(M)-1)/(sqrt(M)*log2(M)) * Q(sqrt(3*snr/(M-1)))
+
+    Reference: Proakis J.G. Digital Communications, 5th ed., McGraw-Hill, 2008.
+    """
+    if M < 4:
+        return 1.0
+    sqrt_m = math.sqrt(M)
+    coeff = 2.0 * (sqrt_m - 1.0) / (sqrt_m * math.log2(M))
+    arg = math.sqrt(3.0 * snr_linear / (M - 1.0))
+    return coeff * _qfunc(arg)
+
+
+# ============================================================================
+# Link budget result
+# ============================================================================
+@dataclass
+class LinkResult:
+    """Output of a single FSO link budget computation."""
+    distance_km: float = 0.0
+    received_power_dbm: float = 0.0
+    path_loss_db: float = 0.0
+    tx_antenna_gain_db: float = 0.0
+    rx_antenna_gain_db: float = 0.0
+    snr_db: float = 0.0
+    snr_linear: float = 0.0
+    modulation_order: int = 0
+    modulation_label: str = ""
+    feasible: bool = True
+    per_channel_bw_gbps: float = 0.0
+    total_bw_gbps: float = 0.0
+    raw_total_bw_gbps: float = 0.0
+    latency_ms: float = 0.0
+    limiting_reason: str = ""
+
+
+# ============================================================================
+# Core physics functions (FIXED - do not modify)
+# ============================================================================
+
+def _antenna_gain_db(diameter_m: float, wavelength_m: float) -> float:
+    """Diffraction-limited circular aperture gain.
+    G = (pi * D / lambda)^2
+    """
+    if diameter_m <= 0 or wavelength_m <= 0:
+        return 0.0
+    g_linear = (PI * diameter_m / wavelength_m) ** 2
+    return 10.0 * math.log10(g_linear)
+
+
+def _path_loss_db(distance_m: float, wavelength_m: float) -> float:
+    """Friis free-space path loss.
+    L = (lambda / (4 * pi * d))^2
+    Valid for far-field: d >> 2*D^2/lambda
+    """
+    if distance_m <= 0:
+        raise ValueError(f"distance must be > 0, got {distance_m} m")
+    l_linear = (wavelength_m / (4.0 * PI * distance_m)) ** 2
+    return 10.0 * math.log10(l_linear)
+
+
+def _edfa_snr(
+    pr_linear_w: float,
+    preamp_nf_db: float,
+    baud_rate_hz: float,
+) -> float:
+    """Compute SNR after EDFA pre-amplifier (signal-ASE beat noise dominant).
+
+    SNR = Pr / (2 * n_sp * h * nu * B_e)
+
+    where n_sp = NF_linear / 2 (high-gain approximation).
+
+    Reference: Agrawal G.P. Fiber-Optic Communication Systems, 5th ed., 2021, Sec 6.3-6.5.
+    Formula only - EDFA parameter values from space-qualified sources (MPBC).
+
+    This noise mechanism is identical whether the signal arrived via fiber or
+    free-space propagation, once coupled into single-mode fiber before the EDFA.
+    """
+    if pr_linear_w <= 0:
+        return 0.0
+    nf_linear = 10.0 ** (preamp_nf_db / 10.0)
+    n_sp = nf_linear / 2.0
+    n_ase_per_hz = n_sp * HNU  # ASE power spectral density [W/Hz]
+    snr = pr_linear_w / (2.0 * n_ase_per_hz * baud_rate_hz)
+    return snr
+
+
+def _select_modulation(
+    snr_linear: float,
+    ber_threshold: float,
+    modulation_pool: List[Tuple[int, str]],
+) -> Tuple[int, str, bool]:
+    """Select highest modulation order satisfying BER threshold.
+
+    Traverses pool from high to low M, returns first feasible format.
+    Returns (M, label, feasible).
+    When no format meets the threshold: (0, "infeasible", False).
+    """
+    for M, label in modulation_pool:
+        if ber_mqam(M, snr_linear) <= ber_threshold:
+            return M, label, True
+    return 0, "infeasible", False
+
+
+# ============================================================================
+# Main computation
+# ============================================================================
+
+def compute_link(config: FSOConfig, distance_km: float) -> LinkResult:
+    """Compute FSO link budget for a given distance and configuration.
+
+    Flow: d -> Pr -> SNR -> select max M -> BW
+    """
+    if distance_km <= 0:
+        raise ValueError(f"distance_km must be > 0, got {distance_km}")
+    if config.tx_power_w <= 0:
+        raise ValueError(f"tx_power_w must be > 0, got {config.tx_power_w}")
+
+    distance_m = distance_km * 1e3
+
+    # ---- Per-channel transmit power ----------------------------------------
+    if config.wdm_power_mode == "per_channel_power_fixed":
+        tx_per_ch_w = config.tx_power_w
+    else:
+        tx_per_ch_w = config.tx_power_w / config.wdm_channels
+    tx_per_ch_dbm = 10.0 * math.log10(tx_per_ch_w * 1e3)
+
+    # ---- Friis -> received power -------------------------------------------
+    g_tx_db = _antenna_gain_db(config.tx_aperture_m, config.wavelength_m)
+    g_rx_db = _antenna_gain_db(config.rx_aperture_m, config.wavelength_m)
+    l_fs_db = _path_loss_db(distance_m, config.wavelength_m)
+    eta_db = (10.0 * math.log10(config.optical_efficiency)
+              if config.optical_efficiency > 0 else -99.0)
+
+    pr_dbm = tx_per_ch_dbm + g_tx_db + g_rx_db + l_fs_db + eta_db - config.link_margin_db
+    pr_w = 1e-3 * (10.0 ** (pr_dbm / 10.0))
+
+    # ---- SNR after EDFA pre-amp --------------------------------------------
+    baud_rate_hz = config.baud_rate_ghz * 1e9
+    snr_linear = _edfa_snr(
+        pr_linear_w=pr_w,
+        preamp_nf_db=config.preamp_nf_db,
+        baud_rate_hz=baud_rate_hz,
+    )
+    snr_db = 10.0 * math.log10(snr_linear) if snr_linear > 0 else -99.0
+
+    # DP penalty: SNR per polarization is halved
+    if config.dual_polarization:
+        snr_pol_linear = snr_linear / 2.0
+        snr_pol_db = snr_db - 3.0
+    else:
+        snr_pol_linear = snr_linear
+        snr_pol_db = snr_db
+
+    # ---- Select modulation -------------------------------------------------
+    M, label, feasible = _select_modulation(
+        snr_pol_linear,
+        ber_threshold=config.ber_threshold,
+        modulation_pool=config.modulation_pool,
+    )
+
+    # ---- Bandwidth ---------------------------------------------------------
+    if feasible and M > 0:
+        fec_eff = 1.0 - config.fec_overhead
+        dp_factor = 2.0 if config.dual_polarization else 1.0
+        per_ch_bw = config.baud_rate_ghz * math.log2(M) * dp_factor * fec_eff
+    else:
+        per_ch_bw = 0.0
+
+    total_bw = per_ch_bw * config.wdm_channels
+    raw_total = total_bw
+
+    # Apply terminal hardware cap
+    if config.terminal_cap_gbps is not None:
+        per_ch_bw = min(per_ch_bw, config.terminal_cap_gbps)
+        total_bw = min(total_bw, config.terminal_cap_gbps)
+
+    # ---- Latency -----------------------------------------------------------
+    latency_ms = (distance_m / C) * 1e3
+
+    # ---- Limiting reason ---------------------------------------------------
+    limiting_reason = ""
+    if not feasible:
+        limiting_reason = (
+            f"SNR {snr_pol_db:.1f} dB insufficient for any modulation "
+            f"at BER={config.ber_threshold:.0e}"
+        )
+    elif total_bw <= 0:
+        limiting_reason = "Total bandwidth zero"
+
+    return LinkResult(
+        distance_km=distance_km,
+        received_power_dbm=pr_dbm,
+        path_loss_db=l_fs_db,
+
+exec
+/bin/bash -lc "sed -n '1,220p' sweep.py" in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+# -*- coding: utf-8 -*-
+"""
+FSO distance-bandwidth sweep script (v3.0)
+===========================================
+Usage:
+  python sweep.py
+  python sweep.py --config configs/google_constellation.json
+
+Physical engine is in link_model.py.
+"""
+
+import argparse
+import os
+
+from config import FSOConfig, load_config_from_json
+from link_model import geomspace, sweep_distances, print_table, save_csv
+
+
+if __name__ == "__main__":
+    default_config = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "configs",
+        "google_constellation.json",
+    )
+    parser = argparse.ArgumentParser(description="FSO distance-bandwidth sweep")
+    parser.add_argument("--config", default=default_config,
+                        help="JSON config path")
+    parser.add_argument("--distance-min-km", type=float, default=100.0)
+    parser.add_argument("--distance-max-km", type=float, default=5000.0)
+    parser.add_argument("--distance-points", type=int, default=15)
+    parser.add_argument("--output", type=str, default=None,
+                        help="CSV output path")
+    args = parser.parse_args()
+
+    cfg: FSOConfig = load_config_from_json(args.config)
+
+    distances = geomspace(
+        args.distance_min_km, args.distance_max_km, args.distance_points
+    )
+    results = sweep_distances(cfg, distances)
+
+    print()
+    print(f"Config: {args.config}")
+    print(f"  Bs={cfg.baud_rate_ghz} Gbaud | WDM={cfg.wdm_channels} | "
+          f"Pool={[m[1] for m in cfg.modulation_pool]}")
+    print(f"  EDFA: {cfg.tx_power_w}W booster, "
+          f"G={cfg.preamp_gain_db}dB / NF={cfg.preamp_nf_db}dB")
+    print(f"  Aperture: {cfg.tx_aperture_m*100:.0f}cm | Margin: {cfg.link_margin_db}dB "
+          f"| Cap: {cfg.terminal_cap_gbps}Gbps")
+    print()
+
+    print_table(results)
+
+    # CSV output
+    if args.output:
+        out_path = args.output
+    else:
+        out_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "results",
+        )
+        os.makedirs(out_dir, exist_ok=True)
+        config_name = os.path.splitext(os.path.basename(args.config))[0]
+        out_path = os.path.join(out_dir, f"distance_bw_{config_name}.csv")
+
+    save_csv(results, out_path)
+
+exec
+/bin/bash -lc "ls -la && rg --files -g '*.py' -g '"'!tasks/**'"'" in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+total 36
+drwxr-xr-x  7 guolidong nicsefc-user   213 Jun  9 00:18 .
+drwxr-xr-x 10 guolidong nicsefc-user   168 Jun  8 20:14 ..
+drwxr-xr-x  8 guolidong nicsefc-user   235 Jun  9 00:22 .git
+-rw-r--r--  1 guolidong nicsefc-user    34 Jun  8 23:56 .gitignore
+-rw-r--r--  1 guolidong nicsefc-user  3106 Jun  9 00:15 README.md
+drwxr-xr-x  2 guolidong nicsefc-user   187 Jun  9 00:16 __pycache__
+-rw-r--r--  1 guolidong nicsefc-user  5906 Jun  9 00:15 config.py
+drwxr-xr-x  2 guolidong nicsefc-user    47 Jun  9 00:18 configs
+-rw-r--r--  1 guolidong nicsefc-user 15050 Jun  9 00:18 link_model.py
+drwxr-xr-x  2 guolidong nicsefc-user    32 Jun  8 23:59 results
+-rw-r--r--  1 guolidong nicsefc-user  2218 Jun  9 00:15 sweep.py
+drwxr-xr-x  4 guolidong nicsefc-user    67 Jun  9 00:18 tasks
+link_model.py
+config.py
+sweep.py
+
+exec
+/bin/bash -lc "rg -n \"load_config_from_json|compute_link|argparse|Config:|Waveform:\" -S . --glob '"'!tasks/**'"'" in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+./link_model.py:40:from config import FSOConfig, load_config_from_json
+./link_model.py:175:def compute_link(config: FSOConfig, distance_km: float) -> LinkResult:
+./link_model.py:285:    return [compute_link(config, d) for d in distances_km]
+./link_model.py:389:    cfg = load_config_from_json(cfg_path)
+./link_model.py:393:    print(f"Config: {cfg_path}")
+./link_model.py:394:    print(f"Waveform: {cfg.baud_rate_ghz} Gbaud, WDM={cfg.wdm_channels}, "
+./config.py:10:class TXConfig:
+./config.py:29:class RXConfig:
+./config.py:40:class ChannelConfig:
+./config.py:47:class FSOConfig:
+./config.py:140:def load_config_from_json(filepath: str) -> FSOConfig:
+./sweep.py:12:import argparse
+./sweep.py:15:from config import FSOConfig, load_config_from_json
+./sweep.py:25:    parser = argparse.ArgumentParser(description="FSO distance-bandwidth sweep")
+./sweep.py:35:    cfg: FSOConfig = load_config_from_json(args.config)
+./sweep.py:43:    print(f"Config: {args.config}")
+
+exec
+/bin/bash -lc "sed -n '1,240p' config.py" in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+# -*- coding: utf-8 -*-
+"""Configuration objects for the FSO inter-satellite link model."""
+
+from dataclasses import asdict, dataclass, field
+import json
+from typing import Any, Dict, List, Optional, Tuple
+
+
+@dataclass
+class TXConfig:
+    """Transmit-side hardware and waveform parameters."""
+
+    tx_power_w: float
+    tx_aperture_m: float
+    wavelength_m: float = 1.55e-6
+    baud_rate_ghz: float = 60.0
+    wdm_channels: int = 2
+    fec_overhead: float = 0.15
+    dual_polarization: bool = True
+    wdm_power_mode: str = "total_power_fixed"
+    modulation_pool: List[Tuple[int, str]] = field(default_factory=lambda: [
+        (16, "DP-16QAM"),
+        (8, "DP-8QAM"),
+        (4, "DP-QPSK"),
+    ])
+
+
+@dataclass
+class RXConfig:
+    """Receive-side terminal and pre-amplifier parameters."""
+
+    rx_aperture_m: float
+    preamp_gain_db: float
+    preamp_nf_db: float
+    ber_threshold: float
+    terminal_cap_gbps: Optional[float]
+
+
+@dataclass
+class ChannelConfig:
+    """Free-space optical channel parameters."""
+
+    link_margin_db: float
+    optical_efficiency: float
+
+
+class FSOConfig:
+    """Combined FSO configuration with legacy flat attribute access."""
+
+    _TX_FIELDS = {
+        "tx_power_w", "tx_aperture_m", "wavelength_m", "baud_rate_ghz",
+        "wdm_channels", "fec_overhead", "dual_polarization",
+        "wdm_power_mode", "modulation_pool",
+    }
+    _RX_FIELDS = {
+        "rx_aperture_m", "preamp_gain_db", "preamp_nf_db",
+        "ber_threshold", "terminal_cap_gbps",
+    }
+    _CHANNEL_FIELDS = {"link_margin_db", "optical_efficiency"}
+
+    def __init__(
+        self,
+        tx: Optional[TXConfig] = None,
+        rx: Optional[RXConfig] = None,
+        channel: Optional[ChannelConfig] = None,
+        **legacy_fields: Any,
+    ) -> None:
+        default_tx = TXConfig(tx_power_w=5.0, tx_aperture_m=0.10)
+        default_rx = RXConfig(
+            rx_aperture_m=0.10,
+            preamp_gain_db=40.0,
+            preamp_nf_db=7.5,
+            ber_threshold=1e-3,
+            terminal_cap_gbps=400.0,
+        )
+        default_channel = ChannelConfig(link_margin_db=7.0, optical_efficiency=0.7)
+
+        self.tx = tx or default_tx
+        self.rx = rx or default_rx
+        self.channel = channel or default_channel
+
+        unknown_fields = set(legacy_fields) - (
+            self._TX_FIELDS | self._RX_FIELDS | self._CHANNEL_FIELDS
+        )
+        if unknown_fields:
+            names = ", ".join(sorted(unknown_fields))
+            raise TypeError(f"unknown FSOConfig field(s): {names}")
+
+        for name, value in legacy_fields.items():
+            setattr(self, name, value)
+
+    def __getattr__(self, name: str) -> Any:
+        if name in self._TX_FIELDS:
+            return getattr(self.tx, name)
+        if name in self._RX_FIELDS:
+            return getattr(self.rx, name)
+        if name in self._CHANNEL_FIELDS:
+            return getattr(self.channel, name)
+        raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in {"tx", "rx", "channel"}:
+            object.__setattr__(self, name, value)
+        elif name in self._TX_FIELDS:
+            setattr(self.tx, name, value)
+        elif name in self._RX_FIELDS:
+            setattr(self.rx, name, value)
+        elif name in self._CHANNEL_FIELDS:
+            setattr(self.channel, name, value)
+        else:
+            object.__setattr__(self, name, value)
+
+
+def _require_section(data: Dict[str, Any], section: str) -> Dict[str, Any]:
+    value = data.get(section)
+    if not isinstance(value, dict):
+        raise ValueError(f"missing or invalid '{section}' config section")
+    return value
+
+
+def _require_fields(section_name: str, section: Dict[str, Any], fields: List[str]) -> None:
+    missing = [name for name in fields if name not in section]
+    if missing:
+        names = ", ".join(missing)
+        raise ValueError(f"missing required field(s) in '{section_name}': {names}")
+
+
+def _normalize_modulation_pool(value: Any) -> List[Tuple[int, str]]:
+    if not isinstance(value, list):
+        raise ValueError("tx.modulation_pool must be a list")
+    normalized = []
+    for item in value:
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            raise ValueError("each modulation_pool item must be [order, label]")
+        order, label = item
+        normalized.append((int(order), str(label)))
+    return normalized
+
+
+def load_config_from_json(filepath: str) -> FSOConfig:
+    """Load a nested JSON configuration file into an FSOConfig."""
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if not isinstance(data, dict):
+        raise ValueError("top-level config must be a JSON object")
+
+    tx_data = dict(_require_section(data, "tx"))
+    rx_data = dict(_require_section(data, "rx"))
+    channel_data = dict(_require_section(data, "channel"))
+
+    _require_fields("tx", tx_data, [
+        "tx_power_w", "tx_aperture_m", "baud_rate_ghz", "wdm_channels",
+        "fec_overhead", "dual_polarization", "wdm_power_mode",
+        "modulation_pool",
+    ])
+    _require_fields("rx", rx_data, [
+        "rx_aperture_m", "preamp_gain_db", "preamp_nf_db",
+        "ber_threshold", "terminal_cap_gbps",
+    ])
+    _require_fields("channel", channel_data, [
+        "link_margin_db", "optical_efficiency",
+    ])
+
+    if "modulation_pool" in tx_data:
+        tx_data["modulation_pool"] = _normalize_modulation_pool(
+            tx_data["modulation_pool"]
+        )
+
+    return FSOConfig(
+        tx=TXConfig(**tx_data),
+        rx=RXConfig(**rx_data),
+        channel=ChannelConfig(**channel_data),
+    )
+
+
+def config_to_dict(config: FSOConfig) -> dict:
+    """Export an FSOConfig as a JSON-serializable nested dictionary."""
+
+    return {
+        "tx": asdict(config.tx),
+        "rx": asdict(config.rx),
+        "channel": asdict(config.channel),
+    }
+
+codex
+现有 `sweep.py` 只作为独立入口使用，`load_config_from_json()` 和 `compute_link()` 已经支持单点计算所需的数据流。接下来我只新增根目录脚本，并保持默认配置路径为 `configs/google_constellation.json`。
+apply patch
+patch: completed
+/share/guolidong-nfs/SeeSpace/ISLSim/point_test.py
+diff --git a/point_test.py b/point_test.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..40ef61aa3565da5549f0366e0958a7ae8673717d
+--- /dev/null
++++ b/point_test.py
+@@ -0,0 +1,37 @@
++# -*- coding: utf-8 -*-
++"""Single-distance FSO link bandwidth test."""
++
++import argparse
++
++from config import load_config_from_json
++from link_model import compute_link
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(
++        description="Compute FSO bandwidth at a single distance"
++    )
++    parser.add_argument(
++        "--distance-km",
++        type=float,
++        required=True,
++        help="Inter-satellite distance in km",
++    )
++    parser.add_argument(
++        "--config",
++        default="configs/google_constellation.json",
++        help="JSON config path",
++    )
++    args = parser.parse_args()
++
++    config = load_config_from_json(args.config)
++    result = compute_link(config, args.distance_km)
++
++    if result.feasible:
++        print(result.total_bw_gbps)
++    else:
++        print(0.0)
++
++
++if __name__ == "__main__":
++    main()
+
+diff --git a/point_test.py b/point_test.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..40ef61aa3565da5549f0366e0958a7ae8673717d
+--- /dev/null
++++ b/point_test.py
+@@ -0,0 +1,37 @@
++# -*- coding: utf-8 -*-
++"""Single-distance FSO link bandwidth test."""
++
++import argparse
++
++from config import load_config_from_json
++from link_model import compute_link
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(
++        description="Compute FSO bandwidth at a single distance"
++    )
++    parser.add_argument(
++        "--distance-km",
++        type=float,
++        required=True,
++        help="Inter-satellite distance in km",
++    )
++    parser.add_argument(
++        "--config",
++        default="configs/google_constellation.json",
++        help="JSON config path",
++    )
++    args = parser.parse_args()
++
++    config = load_config_from_json(args.config)
++    result = compute_link(config, args.distance_km)
++
++    if result.feasible:
++        print(result.total_bw_gbps)
++    else:
++        print(0.0)
++
++
++if __name__ == "__main__":
++    main()
+
+codex
+`point_test.py` 已新增，导入路径与项目现有风格一致，没有引入 `sys.path` 修改。现在执行指定验证，包括 stdout 行数、float 解析、缺参错误、`sweep.py --help` 和全量语法检查。
+exec
+/bin/bash -lc 'python3 point_test.py --distance-km 1000 --config configs/google_constellation.json' in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+400.0
+
+exec
+/bin/bash -lc 'python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | wc -l' in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+1
+
+exec
+/bin/bash -lc 'python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | python3 -c "import sys; print(float(sys.stdin.read().strip()))"' in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+400.0
+
+exec
+/bin/bash -lc 'python3 -m py_compile point_test.py' in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+exec
+/bin/bash -lc 'python3 point_test.py' in /share/guolidong-nfs/SeeSpace/ISLSim
+ exited 2 in 0ms:
+usage: point_test.py [-h] --distance-km DISTANCE_KM [--config CONFIG]
+point_test.py: error: the following arguments are required: --distance-km
+
+exec
+/bin/bash -lc 'python3 sweep.py --help' in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+usage: sweep.py [-h] [--config CONFIG] [--distance-min-km DISTANCE_MIN_KM]
+                [--distance-max-km DISTANCE_MAX_KM]
+                [--distance-points DISTANCE_POINTS] [--output OUTPUT]
+
+FSO distance-bandwidth sweep
+
+options:
+  -h, --help            show this help message and exit
+  --config CONFIG       JSON config path
+  --distance-min-km DISTANCE_MIN_KM
+  --distance-max-km DISTANCE_MAX_KM
+  --distance-points DISTANCE_POINTS
+  --output OUTPUT       CSV output path
+
+diff --git a/point_test.py b/point_test.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..40ef61aa3565da5549f0366e0958a7ae8673717d
+--- /dev/null
++++ b/point_test.py
+@@ -0,0 +1,37 @@
++# -*- coding: utf-8 -*-
++"""Single-distance FSO link bandwidth test."""
++
++import argparse
++
++from config import load_config_from_json
++from link_model import compute_link
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(
++        description="Compute FSO bandwidth at a single distance"
++    )
++    parser.add_argument(
++        "--distance-km",
++        type=float,
++        required=True,
++        help="Inter-satellite distance in km",
++    )
++    parser.add_argument(
++        "--config",
++        default="configs/google_constellation.json",
++        help="JSON config path",
++    )
++    args = parser.parse_args()
++
++    config = load_config_from_json(args.config)
++    result = compute_link(config, args.distance_km)
++
++    if result.feasible:
++        print(result.total_bw_gbps)
++    else:
++        print(0.0)
++
++
++if __name__ == "__main__":
++    main()
+
+codex
+指定验证的核心路径都通过了：单点输出为 `400.0`，行数为 `1`，并且可以被 `float()` 解析；缺少 `--distance-km` 时 argparse 返回退出码 `2`。我还会补跑所有 Python 文件的编译检查和 `link_model.py` 入口运行，以覆盖无回归项。
+exec
+/bin/bash -lc 'find tasks/isl-point-test/impl -maxdepth 1 -type f -print' in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+tasks/isl-point-test/impl/round-0-prompt.md
+
+exec
+/bin/bash -lc "sed -n '1,120p' point_test.py" in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+# -*- coding: utf-8 -*-
+"""Single-distance FSO link bandwidth test."""
+
+import argparse
+
+from config import load_config_from_json
+from link_model import compute_link
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Compute FSO bandwidth at a single distance"
+    )
+    parser.add_argument(
+        "--distance-km",
+        type=float,
+        required=True,
+        help="Inter-satellite distance in km",
+    )
+    parser.add_argument(
+        "--config",
+        default="configs/google_constellation.json",
+        help="JSON config path",
+    )
+    args = parser.parse_args()
+
+    config = load_config_from_json(args.config)
+    result = compute_link(config, args.distance_km)
+
+    if result.feasible:
+        print(result.total_bw_gbps)
+    else:
+        print(0.0)
+
+
+if __name__ == "__main__":
+    main()
+
+exec
+/bin/bash -lc 'python3 link_model.py' in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+
+Config: /share/guolidong-nfs/SeeSpace/ISLSim/configs/google_constellation.json
+Waveform: 60.0 Gbaud, WDM=2, Pool=['DP-16QAM', 'DP-8QAM', 'DP-QPSK']
+EDFA: 5.0W booster, G=40.0dB / NF=7.5dB
+Aperture: 10cm | Margin: 7.0dB | Cap: 400.0Gbps
+
+-----------------------------------------------------------------------------
+  Dist(km)   Lat(ms)   SNR(dB)      Modulation      Raw BW      Capped     OK
+-----------------------------------------------------------------------------
+     100.0      0.33     40.17        DP-16QAM       816.0       400.0    YES
+     132.2      0.44     37.74        DP-16QAM       816.0       400.0    YES
+     174.9      0.58     35.31        DP-16QAM       816.0       400.0    YES
+     231.2      0.77     32.89        DP-16QAM       816.0       400.0    YES
+     305.8      1.02     30.46        DP-16QAM       816.0       400.0    YES
+     404.4      1.35     28.03        DP-16QAM       816.0       400.0    YES
+     534.7      1.78     25.60        DP-16QAM       816.0       400.0    YES
+     707.1      2.36     23.18        DP-16QAM       816.0       400.0    YES
+     935.1      3.12     20.75        DP-16QAM       816.0       400.0    YES
+    1236.5      4.12     18.32        DP-16QAM       816.0       400.0    YES
+    1635.1      5.45     15.90         DP-8QAM       612.0       400.0    YES
+    2162.2      7.21     13.47         DP-8QAM       612.0       400.0    YES
+    2859.3      9.54     11.04         DP-QPSK       408.0       400.0    YES
+    3781.1     12.61      8.61      infeasible                             NO
+    5000.0     16.68      6.19      infeasible                             NO
+-----------------------------------------------------------------------------
+
+exec
+/bin/bash -lc 'python3 -m py_compile $(rg --files -g '"'*.py' -g '"'!tasks/**'"')" in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+diff --git a/point_test.py b/point_test.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..40ef61aa3565da5549f0366e0958a7ae8673717d
+--- /dev/null
++++ b/point_test.py
+@@ -0,0 +1,37 @@
++# -*- coding: utf-8 -*-
++"""Single-distance FSO link bandwidth test."""
++
++import argparse
++
++from config import load_config_from_json
++from link_model import compute_link
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(
++        description="Compute FSO bandwidth at a single distance"
++    )
++    parser.add_argument(
++        "--distance-km",
++        type=float,
++        required=True,
++        help="Inter-satellite distance in km",
++    )
++    parser.add_argument(
++        "--config",
++        default="configs/google_constellation.json",
++        help="JSON config path",
++    )
++    args = parser.parse_args()
++
++    config = load_config_from_json(args.config)
++    result = compute_link(config, args.distance_km)
++
++    if result.feasible:
++        print(result.total_bw_gbps)
++    else:
++        print(0.0)
++
++
++if __name__ == "__main__":
++    main()
+
+codex
+全量 `py_compile` 通过，`python3 link_model.py` 也正常运行。最后补一个默认配置路径和不存在配置文件的验证，然后写入本轮 summary 文件。
+exec
+/bin/bash -lc 'python3 point_test.py --distance-km 1000' in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+400.0
+
+exec
+/bin/bash -lc 'python3 point_test.py --distance-km 1000 --config configs/does_not_exist.json' in /share/guolidong-nfs/SeeSpace/ISLSim
+ exited 1 in 0ms:
+Traceback (most recent call last):
+  File "/share/guolidong-nfs/SeeSpace/ISLSim/point_test.py", line 37, in <module>
+    main()
+  File "/share/guolidong-nfs/SeeSpace/ISLSim/point_test.py", line 27, in main
+    config = load_config_from_json(args.config)
+  File "/share/guolidong-nfs/SeeSpace/ISLSim/config.py", line 143, in load_config_from_json
+    with open(filepath, "r", encoding="utf-8") as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'configs/does_not_exist.json'
+
+diff --git a/point_test.py b/point_test.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..40ef61aa3565da5549f0366e0958a7ae8673717d
+--- /dev/null
++++ b/point_test.py
+@@ -0,0 +1,37 @@
++# -*- coding: utf-8 -*-
++"""Single-distance FSO link bandwidth test."""
++
++import argparse
++
++from config import load_config_from_json
++from link_model import compute_link
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(
++        description="Compute FSO bandwidth at a single distance"
++    )
++    parser.add_argument(
++        "--distance-km",
++        type=float,
++        required=True,
++        help="Inter-satellite distance in km",
++    )
++    parser.add_argument(
++        "--config",
++        default="configs/google_constellation.json",
++        help="JSON config path",
++    )
++    args = parser.parse_args()
++
++    config = load_config_from_json(args.config)
++    result = compute_link(config, args.distance_km)
++
++    if result.feasible:
++        print(result.total_bw_gbps)
++    else:
++        print(0.0)
++
++
++if __name__ == "__main__":
++    main()
+
+codex
+验证结果已经足够覆盖本轮要求：默认 `--config` 可用，不存在配置文件会透传异常并以非零退出。现在写入 `tasks/isl-point-test/impl/round-0-summary.md`。
+apply patch
+patch: completed
+/share/guolidong-nfs/SeeSpace/ISLSim/tasks/isl-point-test/impl/round-0-summary.md
+diff --git a/point_test.py b/point_test.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..40ef61aa3565da5549f0366e0958a7ae8673717d
+--- /dev/null
++++ b/point_test.py
+@@ -0,0 +1,37 @@
++# -*- coding: utf-8 -*-
++"""Single-distance FSO link bandwidth test."""
++
++import argparse
++
++from config import load_config_from_json
++from link_model import compute_link
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(
++        description="Compute FSO bandwidth at a single distance"
++    )
++    parser.add_argument(
++        "--distance-km",
++        type=float,
++        required=True,
++        help="Inter-satellite distance in km",
++    )
++    parser.add_argument(
++        "--config",
++        default="configs/google_constellation.json",
++        help="JSON config path",
++    )
++    args = parser.parse_args()
++
++    config = load_config_from_json(args.config)
++    result = compute_link(config, args.distance_km)
++
++    if result.feasible:
++        print(result.total_bw_gbps)
++    else:
++        print(0.0)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tasks/isl-point-test/impl/round-0-summary.md b/tasks/isl-point-test/impl/round-0-summary.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..2038f6e8153ab0b7ae6097463e1f984b1807af86
+--- /dev/null
++++ b/tasks/isl-point-test/impl/round-0-summary.md
+@@ -0,0 +1,54 @@
++# Round 0 Summary
++
++## 1. 本轮实现内容
++
++- 在项目根目录新增 `point_test.py`。
++- 脚本使用 argparse 接收必需参数 `--distance-km` 和可选参数 `--config`。
++- `--config` 默认值为 `configs/google_constellation.json`。
++- 脚本通过 `load_config_from_json()` 加载配置，通过 `compute_link()` 执行单点链路计算。
++- 标准输出仅打印一个浮点带宽数值：链路可行时输出 `LinkResult.total_bw_gbps`，不可行时输出 `0.0`。
++- 未修改 `sweep.py`、`config.py`、`link_model.py` 或配置文件。
++
++## 2. AC 推进情况
++
++- AC-1: Implemented
++  - 证据：项目根目录存在 `point_test.py`。
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json` 输出 `400.0`，退出码为 0。
++  - 证据：`python3 point_test.py --distance-km 1000` 使用默认配置输出 `400.0`，退出码为 0。
++  - 证据：`python3 point_test.py` 输出 usage，并因缺少 `--distance-km` 以退出码 2 失败。
++  - 说明：本轮任务明确要求 `--config` 为可选参数，因此未将缺少 `--config` 作为错误处理。
++
++- AC-2: Implemented
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | wc -l` 输出 `1`。
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | python3 -c "import sys; print(float(sys.stdin.read().strip()))"` 输出 `400.0`。
++  - 证据：脚本 stdout 仅包含带宽数值，不输出 `Config:`、`Waveform:` 或其他说明文字。
++
++- AC-3: Implemented
++  - 证据：`point_test.py` 使用 `from config import load_config_from_json` 和 `from link_model import compute_link`。
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/does_not_exist.json` 抛出 `FileNotFoundError`，退出码为 1。
++  - 证据：配置加载异常未被吞掉，符合非零退出要求。
++
++- AC-4: Implemented
++  - 证据：本轮未修改 `sweep.py`。
++  - 证据：`python3 sweep.py --help` 正常输出原有 argparse help，退出码为 0。
++  - 证据：`sweep.py` 中没有新增导入或代码路径。
++
++- AC-5: Implemented
++  - 证据：`python3 -m py_compile point_test.py` 通过。
++  - 证据：`python3 -m py_compile $(rg --files -g '*.py' -g '!tasks/**')` 通过。
++  - 证据：`python3 link_model.py` 正常运行并输出距离-带宽表，退出码为 0。
++  - 证据：未修改 `config.py`、`link_model.py`、`configs/google_constellation.json`。
++
++## 3. 遗留问题
++
++- 无。
++
++## 4. Goal Tracker 更新请求
++
++- 请求将 Round 0 标记为完成。
++- AC-1 至 AC-5 均已按本轮任务约束实现并验证。
++
++## 5. Lesson Delta
++
++- 新增单点测试入口时，保持 stdout 仅输出机器可解析数值，避免复用会打印说明文字的 sweep 输出路径。
++- 本轮任务中 `--config` 的要求以 Round 0 明确说明为准：可选并提供默认配置路径。
+
+diff --git a/point_test.py b/point_test.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..40ef61aa3565da5549f0366e0958a7ae8673717d
+--- /dev/null
++++ b/point_test.py
+@@ -0,0 +1,37 @@
++# -*- coding: utf-8 -*-
++"""Single-distance FSO link bandwidth test."""
++
++import argparse
++
++from config import load_config_from_json
++from link_model import compute_link
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(
++        description="Compute FSO bandwidth at a single distance"
++    )
++    parser.add_argument(
++        "--distance-km",
++        type=float,
++        required=True,
++        help="Inter-satellite distance in km",
++    )
++    parser.add_argument(
++        "--config",
++        default="configs/google_constellation.json",
++        help="JSON config path",
++    )
++    args = parser.parse_args()
++
++    config = load_config_from_json(args.config)
++    result = compute_link(config, args.distance_km)
++
++    if result.feasible:
++        print(result.total_bw_gbps)
++    else:
++        print(0.0)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tasks/isl-point-test/impl/round-0-summary.md b/tasks/isl-point-test/impl/round-0-summary.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..2038f6e8153ab0b7ae6097463e1f984b1807af86
+--- /dev/null
++++ b/tasks/isl-point-test/impl/round-0-summary.md
+@@ -0,0 +1,54 @@
++# Round 0 Summary
++
++## 1. 本轮实现内容
++
++- 在项目根目录新增 `point_test.py`。
++- 脚本使用 argparse 接收必需参数 `--distance-km` 和可选参数 `--config`。
++- `--config` 默认值为 `configs/google_constellation.json`。
++- 脚本通过 `load_config_from_json()` 加载配置，通过 `compute_link()` 执行单点链路计算。
++- 标准输出仅打印一个浮点带宽数值：链路可行时输出 `LinkResult.total_bw_gbps`，不可行时输出 `0.0`。
++- 未修改 `sweep.py`、`config.py`、`link_model.py` 或配置文件。
++
++## 2. AC 推进情况
++
++- AC-1: Implemented
++  - 证据：项目根目录存在 `point_test.py`。
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json` 输出 `400.0`，退出码为 0。
++  - 证据：`python3 point_test.py --distance-km 1000` 使用默认配置输出 `400.0`，退出码为 0。
++  - 证据：`python3 point_test.py` 输出 usage，并因缺少 `--distance-km` 以退出码 2 失败。
++  - 说明：本轮任务明确要求 `--config` 为可选参数，因此未将缺少 `--config` 作为错误处理。
++
++- AC-2: Implemented
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | wc -l` 输出 `1`。
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | python3 -c "import sys; print(float(sys.stdin.read().strip()))"` 输出 `400.0`。
++  - 证据：脚本 stdout 仅包含带宽数值，不输出 `Config:`、`Waveform:` 或其他说明文字。
++
++- AC-3: Implemented
++  - 证据：`point_test.py` 使用 `from config import load_config_from_json` 和 `from link_model import compute_link`。
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/does_not_exist.json` 抛出 `FileNotFoundError`，退出码为 1。
++  - 证据：配置加载异常未被吞掉，符合非零退出要求。
++
++- AC-4: Implemented
++  - 证据：本轮未修改 `sweep.py`。
++  - 证据：`python3 sweep.py --help` 正常输出原有 argparse help，退出码为 0。
++  - 证据：`sweep.py` 中没有新增导入或代码路径。
++
++- AC-5: Implemented
++  - 证据：`python3 -m py_compile point_test.py` 通过。
++  - 证据：`python3 -m py_compile $(rg --files -g '*.py' -g '!tasks/**')` 通过。
++  - 证据：`python3 link_model.py` 正常运行并输出距离-带宽表，退出码为 0。
++  - 证据：未修改 `config.py`、`link_model.py`、`configs/google_constellation.json`。
++
++## 3. 遗留问题
++
++- 无。
++
++## 4. Goal Tracker 更新请求
++
++- 请求将 Round 0 标记为完成。
++- AC-1 至 AC-5 均已按本轮任务约束实现并验证。
++
++## 5. Lesson Delta
++
++- 新增单点测试入口时，保持 stdout 仅输出机器可解析数值，避免复用会打印说明文字的 sweep 输出路径。
++- 本轮任务中 `--config` 的要求以 Round 0 明确说明为准：可选并提供默认配置路径。
+
+codex
+summary 已写入指定路径。最后做一次文件存在性检查，确认新增文件和 summary 都落在预期位置。
+exec
+/bin/bash -lc 'ls -l point_test.py tasks/isl-point-test/impl/round-0-summary.md' in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+-rw-r--r-- 1 guolidong nicsefc-user  842 Jun  9 00:27 point_test.py
+-rw-r--r-- 1 guolidong nicsefc-user 2925 Jun  9 00:28 tasks/isl-point-test/impl/round-0-summary.md
+
+exec
+/bin/bash -lc "sed -n '1,220p' tasks/isl-point-test/impl/round-0-summary.md" in /share/guolidong-nfs/SeeSpace/ISLSim
+ succeeded in 0ms:
+# Round 0 Summary
+
+## 1. 本轮实现内容
+
+- 在项目根目录新增 `point_test.py`。
+- 脚本使用 argparse 接收必需参数 `--distance-km` 和可选参数 `--config`。
+- `--config` 默认值为 `configs/google_constellation.json`。
+- 脚本通过 `load_config_from_json()` 加载配置，通过 `compute_link()` 执行单点链路计算。
+- 标准输出仅打印一个浮点带宽数值：链路可行时输出 `LinkResult.total_bw_gbps`，不可行时输出 `0.0`。
+- 未修改 `sweep.py`、`config.py`、`link_model.py` 或配置文件。
+
+## 2. AC 推进情况
+
+- AC-1: Implemented
+  - 证据：项目根目录存在 `point_test.py`。
+  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json` 输出 `400.0`，退出码为 0。
+  - 证据：`python3 point_test.py --distance-km 1000` 使用默认配置输出 `400.0`，退出码为 0。
+  - 证据：`python3 point_test.py` 输出 usage，并因缺少 `--distance-km` 以退出码 2 失败。
+  - 说明：本轮任务明确要求 `--config` 为可选参数，因此未将缺少 `--config` 作为错误处理。
+
+- AC-2: Implemented
+  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | wc -l` 输出 `1`。
+  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | python3 -c "import sys; print(float(sys.stdin.read().strip()))"` 输出 `400.0`。
+  - 证据：脚本 stdout 仅包含带宽数值，不输出 `Config:`、`Waveform:` 或其他说明文字。
+
+- AC-3: Implemented
+  - 证据：`point_test.py` 使用 `from config import load_config_from_json` 和 `from link_model import compute_link`。
+  - 证据：`python3 point_test.py --distance-km 1000 --config configs/does_not_exist.json` 抛出 `FileNotFoundError`，退出码为 1。
+  - 证据：配置加载异常未被吞掉，符合非零退出要求。
+
+- AC-4: Implemented
+  - 证据：本轮未修改 `sweep.py`。
+  - 证据：`python3 sweep.py --help` 正常输出原有 argparse help，退出码为 0。
+  - 证据：`sweep.py` 中没有新增导入或代码路径。
+
+- AC-5: Implemented
+  - 证据：`python3 -m py_compile point_test.py` 通过。
+  - 证据：`python3 -m py_compile $(rg --files -g '*.py' -g '!tasks/**')` 通过。
+  - 证据：`python3 link_model.py` 正常运行并输出距离-带宽表，退出码为 0。
+  - 证据：未修改 `config.py`、`link_model.py`、`configs/google_constellation.json`。
+
+## 3. 遗留问题
+
+- 无。
+
+## 4. Goal Tracker 更新请求
+
+- 请求将 Round 0 标记为完成。
+- AC-1 至 AC-5 均已按本轮任务约束实现并验证。
+
+## 5. Lesson Delta
+
+- 新增单点测试入口时，保持 stdout 仅输出机器可解析数值，避免复用会打印说明文字的 sweep 输出路径。
+- 本轮任务中 `--config` 的要求以 Round 0 明确说明为准：可选并提供默认配置路径。
+
+diff --git a/point_test.py b/point_test.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..40ef61aa3565da5549f0366e0958a7ae8673717d
+--- /dev/null
++++ b/point_test.py
+@@ -0,0 +1,37 @@
++# -*- coding: utf-8 -*-
++"""Single-distance FSO link bandwidth test."""
++
++import argparse
++
++from config import load_config_from_json
++from link_model import compute_link
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(
++        description="Compute FSO bandwidth at a single distance"
++    )
++    parser.add_argument(
++        "--distance-km",
++        type=float,
++        required=True,
++        help="Inter-satellite distance in km",
++    )
++    parser.add_argument(
++        "--config",
++        default="configs/google_constellation.json",
++        help="JSON config path",
++    )
++    args = parser.parse_args()
++
++    config = load_config_from_json(args.config)
++    result = compute_link(config, args.distance_km)
++
++    if result.feasible:
++        print(result.total_bw_gbps)
++    else:
++        print(0.0)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tasks/isl-point-test/impl/round-0-summary.md b/tasks/isl-point-test/impl/round-0-summary.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..2038f6e8153ab0b7ae6097463e1f984b1807af86
+--- /dev/null
++++ b/tasks/isl-point-test/impl/round-0-summary.md
+@@ -0,0 +1,54 @@
++# Round 0 Summary
++
++## 1. 本轮实现内容
++
++- 在项目根目录新增 `point_test.py`。
++- 脚本使用 argparse 接收必需参数 `--distance-km` 和可选参数 `--config`。
++- `--config` 默认值为 `configs/google_constellation.json`。
++- 脚本通过 `load_config_from_json()` 加载配置，通过 `compute_link()` 执行单点链路计算。
++- 标准输出仅打印一个浮点带宽数值：链路可行时输出 `LinkResult.total_bw_gbps`，不可行时输出 `0.0`。
++- 未修改 `sweep.py`、`config.py`、`link_model.py` 或配置文件。
++
++## 2. AC 推进情况
++
++- AC-1: Implemented
++  - 证据：项目根目录存在 `point_test.py`。
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json` 输出 `400.0`，退出码为 0。
++  - 证据：`python3 point_test.py --distance-km 1000` 使用默认配置输出 `400.0`，退出码为 0。
++  - 证据：`python3 point_test.py` 输出 usage，并因缺少 `--distance-km` 以退出码 2 失败。
++  - 说明：本轮任务明确要求 `--config` 为可选参数，因此未将缺少 `--config` 作为错误处理。
++
++- AC-2: Implemented
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | wc -l` 输出 `1`。
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | python3 -c "import sys; print(float(sys.stdin.read().strip()))"` 输出 `400.0`。
++  - 证据：脚本 stdout 仅包含带宽数值，不输出 `Config:`、`Waveform:` 或其他说明文字。
++
++- AC-3: Implemented
++  - 证据：`point_test.py` 使用 `from config import load_config_from_json` 和 `from link_model import compute_link`。
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/does_not_exist.json` 抛出 `FileNotFoundError`，退出码为 1。
++  - 证据：配置加载异常未被吞掉，符合非零退出要求。
++
++- AC-4: Implemented
++  - 证据：本轮未修改 `sweep.py`。
++  - 证据：`python3 sweep.py --help` 正常输出原有 argparse help，退出码为 0。
++  - 证据：`sweep.py` 中没有新增导入或代码路径。
++
++- AC-5: Implemented
++  - 证据：`python3 -m py_compile point_test.py` 通过。
++  - 证据：`python3 -m py_compile $(rg --files -g '*.py' -g '!tasks/**')` 通过。
++  - 证据：`python3 link_model.py` 正常运行并输出距离-带宽表，退出码为 0。
++  - 证据：未修改 `config.py`、`link_model.py`、`configs/google_constellation.json`。
++
++## 3. 遗留问题
++
++- 无。
++
++## 4. Goal Tracker 更新请求
++
++- 请求将 Round 0 标记为完成。
++- AC-1 至 AC-5 均已按本轮任务约束实现并验证。
++
++## 5. Lesson Delta
++
++- 新增单点测试入口时，保持 stdout 仅输出机器可解析数值，避免复用会打印说明文字的 sweep 输出路径。
++- 本轮任务中 `--config` 的要求以 Round 0 明确说明为准：可选并提供默认配置路径。
+
+codex
+已完成 Round 0。
+
+新增文件：
+- [point_test.py](/share/guolidong-nfs/SeeSpace/ISLSim/point_test.py)
+- [round-0-summary.md](/share/guolidong-nfs/SeeSpace/ISLSim/tasks/isl-point-test/impl/round-0-summary.md)
+
+验证已执行并通过：
+- `python3 point_test.py --distance-km 1000 --config configs/google_constellation.json` 输出 `400.0`
+- stdout 行数为 `1`
+- 输出可被 `float()` 解析
+- 缺少 `--distance-km` 时 argparse 以退出码 `2` 报错
+- 不存在配置文件时抛出异常并以退出码 `1` 退出
+- `python3 sweep.py --help` 正常
+- `python3 -m py_compile point_test.py` 通过
+- 所有非 tasks 下 `.py` 文件 `py_compile` 通过
+- `python3 link_model.py` 正常运行
+
+未执行任何 git 命令，未修改 `sweep.py`。
+diff --git a/point_test.py b/point_test.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..40ef61aa3565da5549f0366e0958a7ae8673717d
+--- /dev/null
++++ b/point_test.py
+@@ -0,0 +1,37 @@
++# -*- coding: utf-8 -*-
++"""Single-distance FSO link bandwidth test."""
++
++import argparse
++
++from config import load_config_from_json
++from link_model import compute_link
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(
++        description="Compute FSO bandwidth at a single distance"
++    )
++    parser.add_argument(
++        "--distance-km",
++        type=float,
++        required=True,
++        help="Inter-satellite distance in km",
++    )
++    parser.add_argument(
++        "--config",
++        default="configs/google_constellation.json",
++        help="JSON config path",
++    )
++    args = parser.parse_args()
++
++    config = load_config_from_json(args.config)
++    result = compute_link(config, args.distance_km)
++
++    if result.feasible:
++        print(result.total_bw_gbps)
++    else:
++        print(0.0)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tasks/isl-point-test/impl/round-0-summary.md b/tasks/isl-point-test/impl/round-0-summary.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..2038f6e8153ab0b7ae6097463e1f984b1807af86
+--- /dev/null
++++ b/tasks/isl-point-test/impl/round-0-summary.md
+@@ -0,0 +1,54 @@
++# Round 0 Summary
++
++## 1. 本轮实现内容
++
++- 在项目根目录新增 `point_test.py`。
++- 脚本使用 argparse 接收必需参数 `--distance-km` 和可选参数 `--config`。
++- `--config` 默认值为 `configs/google_constellation.json`。
++- 脚本通过 `load_config_from_json()` 加载配置，通过 `compute_link()` 执行单点链路计算。
++- 标准输出仅打印一个浮点带宽数值：链路可行时输出 `LinkResult.total_bw_gbps`，不可行时输出 `0.0`。
++- 未修改 `sweep.py`、`config.py`、`link_model.py` 或配置文件。
++
++## 2. AC 推进情况
++
++- AC-1: Implemented
++  - 证据：项目根目录存在 `point_test.py`。
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json` 输出 `400.0`，退出码为 0。
++  - 证据：`python3 point_test.py --distance-km 1000` 使用默认配置输出 `400.0`，退出码为 0。
++  - 证据：`python3 point_test.py` 输出 usage，并因缺少 `--distance-km` 以退出码 2 失败。
++  - 说明：本轮任务明确要求 `--config` 为可选参数，因此未将缺少 `--config` 作为错误处理。
++
++- AC-2: Implemented
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | wc -l` 输出 `1`。
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/google_constellation.json | python3 -c "import sys; print(float(sys.stdin.read().strip()))"` 输出 `400.0`。
++  - 证据：脚本 stdout 仅包含带宽数值，不输出 `Config:`、`Waveform:` 或其他说明文字。
++
++- AC-3: Implemented
++  - 证据：`point_test.py` 使用 `from config import load_config_from_json` 和 `from link_model import compute_link`。
++  - 证据：`python3 point_test.py --distance-km 1000 --config configs/does_not_exist.json` 抛出 `FileNotFoundError`，退出码为 1。
++  - 证据：配置加载异常未被吞掉，符合非零退出要求。
++
++- AC-4: Implemented
++  - 证据：本轮未修改 `sweep.py`。
++  - 证据：`python3 sweep.py --help` 正常输出原有 argparse help，退出码为 0。
++  - 证据：`sweep.py` 中没有新增导入或代码路径。
++
++- AC-5: Implemented
++  - 证据：`python3 -m py_compile point_test.py` 通过。
++  - 证据：`python3 -m py_compile $(rg --files -g '*.py' -g '!tasks/**')` 通过。
++  - 证据：`python3 link_model.py` 正常运行并输出距离-带宽表，退出码为 0。
++  - 证据：未修改 `config.py`、`link_model.py`、`configs/google_constellation.json`。
++
++## 3. 遗留问题
++
++- 无。
++
++## 4. Goal Tracker 更新请求
++
++- 请求将 Round 0 标记为完成。
++- AC-1 至 AC-5 均已按本轮任务约束实现并验证。
++
++## 5. Lesson Delta
++
++- 新增单点测试入口时，保持 stdout 仅输出机器可解析数值，避免复用会打印说明文字的 sweep 输出路径。
++- 本轮任务中 `--config` 的要求以 Round 0 明确说明为准：可选并提供默认配置路径。
+
+tokens used
+20,294
+
+=== EXIT CODE ===
+0
