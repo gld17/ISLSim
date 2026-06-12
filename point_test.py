@@ -5,6 +5,7 @@ import argparse
 
 from config import load_config_from_json
 from link_model import compute_link
+from validator import validate_config, pre_check_link_feasibility, ValidationError
 
 
 def main() -> None:
@@ -25,6 +26,14 @@ def main() -> None:
     args = parser.parse_args()
 
     config = load_config_from_json(args.config)
+    try:
+        validate_config(config)
+        pre_check_link_feasibility(config)
+    except ValidationError as e:
+        import sys
+        print(f"Config validation failed: {e.message}", file=sys.stderr)
+        sys.exit(1)
+
     result = compute_link(config, args.distance_km)
 
     if result.feasible:

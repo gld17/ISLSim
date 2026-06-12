@@ -14,6 +14,7 @@ import os
 
 from config import FSOConfig, load_config_from_json
 from link_model import geomspace, sweep_distances, print_table, save_csv
+from validator import validate_config, pre_check_link_feasibility, ValidationError
 
 
 if __name__ == "__main__":
@@ -33,6 +34,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cfg: FSOConfig = load_config_from_json(args.config)
+    try:
+        validate_config(cfg)
+        pre_check_link_feasibility(cfg)
+    except ValidationError as e:
+        import sys
+        print(f"Config validation failed: {e.message}", file=sys.stderr)
+        sys.exit(1)
 
     distances = geomspace(
         args.distance_min_km, args.distance_max_km, args.distance_points

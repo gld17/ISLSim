@@ -1,34 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-FSO 星间链路距离-带宽模型 (v3.0)
-=================================
+"""Core FSO link-budget physics.
 
-核心声明 -- 波特率与调制阶数的"等速率异构"问题:
-  同样的比特速率可通过不同技术组合实现:
-    - 方案A: 高波特率 + 低调制阶数 (如 60 Gbaud + DP-QPSK -> 204 Gbps/lambda)
-    - 方案B: 低波特率 + 高调制阶数 (如 32 Gbaud + DP-16QAM -> 218 Gbps/lambda)
-  两个方案在相同距离下的 SNR 不同, 可支持的距离区间也不同。
-  目前业界对"哪种方案在星间 FSO 场景中更可信"尚无定论。
-
-本模型的处理策略:
-  1. 物理层公式完全固定 (Friis / EDFA噪声 / M-QAM BER)
-  2. 波特率(baud_rate_ghz)和调制阶数池(modulation_pool)均为用户可配置参数
-  3. 模型根据 SNR -> 从调制池中选满足 BER 门限的最高阶 -> 计算带宽
-  4. 不同配置产生的距离-带宽曲线差异, 正是"等速率异构"问题的直接体现
-
-本模型无法回答"哪个方案更优", 只能回答"给定参数组合下各距离档位能跑多少带宽"。
-
-物理建模流程:
-  d(t) -> Pr(t) -> SNR(t) -> max M(t) -> BW(t)
-
-References:
-  - Friis, H.T. Proc. IRE, 1946. (Friis transmission equation)
-  - Agrawal G.P. Fiber-Optic Communication Systems, 5th ed., Wiley, 2021. (ASE noise)
-  - Proakis J.G. Digital Communications, 5th ed., McGraw-Hill, 2008. (M-QAM BER)
-  - MPBC Space-Qualified Amplifiers [mpbcommunications.com/space]
-  - PhotoniCore 5W EYDFA for SPACE [photonicore.com.tw]
-  - SDA OISL Standard v2.1.2 [sda.mil]
-  - Beijing S&T Commission: 400 Gbps in-orbit demo [kw.beijing.gov.cn, 2025.03]
+Physical engine for inter-satellite laser link simulation.
 """
 
 from dataclasses import dataclass
@@ -387,6 +360,16 @@ if __name__ == "__main__":
         "google_constellation.json",
     )
     cfg = load_config_from_json(cfg_path)
+    from validator import validate_config, pre_check_link_feasibility, ValidationError
+
+    try:
+        validate_config(cfg)
+        pre_check_link_feasibility(cfg)
+    except ValidationError as e:
+        import sys
+        print(f"Config validation failed: {e.message}", file=sys.stderr)
+        sys.exit(1)
+
     results = sweep_range(cfg, 100, 5000, 15)
 
     print()
